@@ -42,6 +42,30 @@ fpl-dashboard/
 
 ---
 
+## 🔍 How to Find Your FPL Manager ID & Mini-League ID
+
+### 1. Finding Your FPL Manager ID
+1. Log in to [fantasy.premierleague.com](https://fantasy.premierleague.com) in your web browser.
+2. Click the **Points** tab (or click **View Gameweek history** on the right side of the **Pick Team** page).
+3. Check the URL in your browser's address bar. Your **FPL Manager ID** is the number directly after `/entry/`:
+   ```text
+   https://fantasy.premierleague.com/entry/1234567/event/1
+                                           ^^^^^^^
+                                      Your Manager ID
+   ```
+4. Enter that number into the **FPL Manager ID** field in the left sidebar of the dashboard.
+
+### 2. Finding Your Classic Mini-League ID (Optional)
+1. Go to **Leagues & Cups** on the official FPL website and click on any Classic Mini-League.
+2. Check the URL in your browser's address bar. Your **Mini-League ID** is the number after `/leagues/`:
+   ```text
+   https://fantasy.premierleague.com/leagues/987654/standings/c
+                                             ^^^^^^
+                                       Your Mini-League ID
+   ```
+
+---
+
 ## 📊 Dashboard Modules (4 Tabs)
 
 ### 1. 🏃 Player Analytics

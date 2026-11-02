@@ -793,6 +793,16 @@ with st.sidebar:
     with sb_col2:
         plan_horizon = st.selectbox("Horizon (GWs)", options=[3, 4, 5, 6], index=0)
     league_id_input = st.number_input("Mini-League ID (Optional)", min_value=0, value=0, step=1)
+    with st.expander("❓ How to find your ID"):
+        st.markdown(
+            "**FPL Manager ID:**\n"
+            "1. Log in at [fantasy.premierleague.com](https://fantasy.premierleague.com).\n"
+            "2. Open the **Points** tab (or click **Gameweek history**).\n"
+            "3. Copy the number after `/entry/` in your browser URL:\n"
+            "`.../entry/1234567/event/1`\n\n"
+            "**Mini-League ID:**\n"
+            "Open **Leagues & Cups**, click your league, and copy the number after `/leagues/` in the URL."
+        )
 
     st.divider()
     st.markdown("### ⚙️ Model Parameters")
@@ -1627,7 +1637,31 @@ with tab_manager:
     if mgr_load_error:
         st.error(f"Could not load manager data for ID {manager_id_input}: {mgr_load_error}")
     elif squad_df_raw.empty or all_players_xp.empty:
-        st.info("Enter a valid FPL Manager ID in the left sidebar to load your 15-man squad.")
+        st.markdown(
+            """
+            <div style="background: linear-gradient(145deg, rgba(24, 34, 56, 0.92) 0%, rgba(15, 23, 42, 0.96) 100%);
+                        border: 1px solid rgba(0, 255, 135, 0.35); border-left: 5px solid #00ff87;
+                        border-radius: 14px; padding: 1.4rem 1.6rem; margin: 0.5rem 0 1.2rem 0;
+                        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);">
+                <div style="font-size: 1.15rem; font-weight: 800; color: #ffffff; margin-bottom: 0.45rem;">
+                    👋 Welcome to the Squad Pitch &amp; Transfer Sandbox
+                </div>
+                <div style="font-size: 0.9rem; color: #cbd5e1; margin-bottom: 0.9rem;">
+                    Enter your <b>FPL Manager ID</b> in the left sidebar to load your live 15-man squad, optimal Starting XI, captaincy projection, and interactive transfer sandbox.
+                </div>
+                <div style="font-size: 0.85rem; color: #94a3b8; line-height: 1.65;">
+                    <b style="color: #00ff87;">🔍 How to find your FPL Manager ID in 10 seconds:</b><br/>
+                    1. Log in to <a href="https://fantasy.premierleague.com" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 700;">fantasy.premierleague.com</a> in your web browser.<br/>
+                    2. Click the <b>Points</b> tab (or click <b>View Gameweek history</b> on the right side of the Pick Team page).<br/>
+                    3. Look at your browser address bar — your Manager ID is the number between <code>/entry/</code> and <code>/event/</code>:<br/>
+                    <code style="display: inline-block; margin-top: 0.35rem; padding: 0.3rem 0.65rem; background: #0b0f19; border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; color: #e2e8f0; font-family: 'JetBrains Mono', monospace;">
+                        https://fantasy.premierleague.com/entry/<span style="color: #00ff87; font-weight: 800;">1234567</span>/event/1
+                    </code>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     else:
         picks_list = squad_df_raw.copy()
         picks_list.rename(columns={"position": "squad_slot"}, inplace=True)
