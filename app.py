@@ -1245,26 +1245,49 @@ with tab_players:
                     st.info("No upcoming fixtures available.")
 
     with p_sub2:
-        radar_labels = list(player_label_map.keys())
+        pos_by_id = players_df.set_index("id")["position"].to_dict()
+        rad_f1, rad_f2, rad_f3 = st.columns([1, 1, 0.7])
+        with rad_f3:
+            st.caption("Position filter")
+            radar_positions = position_checklist("Position", key="pos_radar")
+        radar_labels = [
+            lbl for lbl, pid in player_label_map.items() if pos_by_id.get(pid) in radar_positions
+        ]
+        if len(radar_labels) < 2:
+            st.warning("Select positions with at least two players.")
+            radar_labels = []
+        # Drop stale selections that the position filter removed.
+        for _k in ("radar_player_a", "radar_player_b"):
+            if st.session_state.get(_k) not in radar_labels:
+                st.session_state.pop(_k, None)
         idx_a, idx_b = 0, 1
         if clicked_player_id and clicked_player_id in id_to_label_map:
-            idx_a = radar_labels.index(id_to_label_map[clicked_player_id])
-            idx_b = 0 if idx_a != 0 else 1
+            clicked_lbl = id_to_label_map[clicked_player_id]
+            if clicked_lbl in radar_labels:
+                idx_a = radar_labels.index(clicked_lbl)
+                idx_b = 0 if idx_a != 0 else 1
+        # A reset selector must not duplicate the other selector's kept choice.
+        kept_a = st.session_state.get("radar_player_a")
+        kept_b = st.session_state.get("radar_player_b")
+        if kept_b is not None and "radar_player_a" not in st.session_state:
+            idx_a = next((i for i, lbl in enumerate(radar_labels) if lbl != kept_b), 0)
+        if kept_a is not None and "radar_player_b" not in st.session_state:
+            idx_b = next((i for i, lbl in enumerate(radar_labels) if lbl != kept_a), 0)
 
-        rad_c1, rad_c2 = st.columns(2)
-        with rad_c1:
-            radar_label_a = st.selectbox(
-                "Player 1 (type to search)", options=radar_labels, index=idx_a, key="radar_player_a"
-            )
-        with rad_c2:
-            radar_label_b = st.selectbox(
-                "Player 2 (type to search)", options=radar_labels, index=idx_b, key="radar_player_b"
-            )
-        if radar_label_a == radar_label_b:
-            st.warning("Choose two different players to compare.")
-            radar_selected_labels = []
-        else:
-            radar_selected_labels = [radar_label_a, radar_label_b]
+        radar_selected_labels = []
+        if radar_labels:
+            with rad_f1:
+                radar_label_a = st.selectbox(
+                    "Player 1 (type to search)", options=radar_labels, index=idx_a, key="radar_player_a"
+                )
+            with rad_f2:
+                radar_label_b = st.selectbox(
+                    "Player 2 (type to search)", options=radar_labels, index=idx_b, key="radar_player_b"
+                )
+            if radar_label_a == radar_label_b:
+                st.warning("Choose two different players to compare.")
+            else:
+                radar_selected_labels = [radar_label_a, radar_label_b]
         if radar_selected_labels:
             radar_pids = [player_label_map[lbl] for lbl in radar_selected_labels]
             radar_df, radar_raw_df = build_player_radar_df(
