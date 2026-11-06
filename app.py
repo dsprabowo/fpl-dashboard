@@ -788,19 +788,21 @@ players_df = build_players_df(bootstrap)
 # --- Sidebar Controls (Global & Persistent Manager Context) ---
 with st.sidebar:
     st.markdown("### 🏆 Manager Studio")
-    manager_id_input = st.number_input(
+    manager_id_raw = st.text_input(
         "FPL Manager ID",
-        min_value=0,
-        value=0,
-        step=1,
+        value="",
+        placeholder="e.g. 1234567",
         help="Enter your FPL Manager ID from fantasy.premierleague.com to load your 15-man squad globally across all tabs.",
-    )
+    ).strip()
+    manager_id_input = int(manager_id_raw) if manager_id_raw.isdigit() else 0
+    if manager_id_raw and not manager_id_raw.isdigit():
+        st.warning("Manager ID must contain digits only.")
     sb_col1, sb_col2 = st.columns(2)
     with sb_col1:
         free_transfers_input = st.selectbox("Free Transfers", options=[1, 2, 3, 4, 5], index=0)
     with sb_col2:
         plan_horizon = st.selectbox("Horizon (GWs)", options=[3, 4, 5, 6], index=0)
-    league_id_input = st.number_input("Mini-League ID (Optional)", min_value=0, value=0, step=1)
+    league_slot = st.container()  # Filled after the manager's leagues are loaded.
     with st.expander("❓ How to find your ID"):
         st.markdown(
             "**FPL Manager ID:**\n"
@@ -808,8 +810,9 @@ with st.sidebar:
             "2. Open the **Points** tab (or click **Gameweek history**).\n"
             "3. Copy the number after `/entry/` in your browser URL:\n"
             "`.../entry/1234567/event/1`\n\n"
-            "**Mini-League ID:**\n"
-            "Open **Leagues & Cups**, click your league, and copy the number after `/leagues/` in the URL."
+            "**Mini-League:**\n"
+            "The app lists your classic leagues once the Manager ID is loaded. "
+            "To view another league, choose **Other league ID...** and enter the number after `/leagues/` in the URL."
         )
 
     st.divider()
@@ -848,6 +851,28 @@ if manager_id_input > 0:
             squad_df_raw = picks_list.copy()
     except Exception as exc:
         mgr_load_error = str(exc)
+
+# --- Mini-League selector built from the manager's own classic leagues ---
+classic_leagues = (mgr_info.get("leagues", {}) or {}).get("classic", []) or []
+# Private invitational leagues ("x") first, then system leagues such as Overall.
+classic_leagues = sorted(classic_leagues, key=lambda lg: lg.get("league_type") != "x")
+_OTHER_LEAGUE = "Other league ID..."
+league_labels = {f"{lg['name']} ({lg['id']})": int(lg["id"]) for lg in classic_leagues}
+league_id_input = 0
+with league_slot:
+    if league_labels:
+        league_choice = st.selectbox(
+            "Mini-League",
+            options=list(league_labels) + [_OTHER_LEAGUE],
+            help="Classic leagues found for this Manager ID.",
+        )
+        if league_choice != _OTHER_LEAGUE:
+            league_id_input = league_labels[league_choice]
+    else:
+        league_choice = _OTHER_LEAGUE
+    if league_choice == _OTHER_LEAGUE:
+        league_raw = st.text_input("Mini-League ID (Optional)", value="", placeholder="e.g. 314").strip()
+        league_id_input = int(league_raw) if league_raw.isdigit() else 0
 
 if st.session_state.get("sandbox_mgr_id") != int(manager_id_input):
     st.session_state["sandbox_mgr_id"] = int(manager_id_input)
