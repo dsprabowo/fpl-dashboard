@@ -695,6 +695,22 @@ def render_html_pitch(opt_sq: pd.DataFrame, formation: str, next_gw: int) -> Non
     st.markdown(full_html, unsafe_allow_html=True)
 
 
+POSITIONS = ["GKP", "DEF", "MID", "FWD"]
+
+
+def position_checklist(label: str, key: str) -> list:
+    """Dropdown (popover) with one checkbox per position. Returns the checked positions."""
+    selected_now = [p for p in POSITIONS if st.session_state.get(f"{key}_{p}", True)]
+    if len(selected_now) == len(POSITIONS):
+        summary = "All"
+    elif not selected_now:
+        summary = "None"
+    else:
+        summary = ", ".join(selected_now)
+    with st.popover(f"{label}: {summary}", width="stretch"):
+        return [p for p in POSITIONS if st.checkbox(p, value=True, key=f"{key}_{p}")]
+
+
 def render_matchup_cards_html(matchups_df: pd.DataFrame) -> None:
     """Render Sofascore/FotMob-style Head-to-Head Fixture Projection Cards."""
     parts = ['<div class="matchup-grid">']
@@ -947,12 +963,7 @@ with tab_players:
     # Compact Toolbar instead of 5 bulky widget rows
     bar_c1, bar_c2, bar_c3, bar_c4 = st.columns([1.45, 1.35, 0.9, 0.9])
     with bar_c1:
-        pos_filter = st.multiselect(
-            "Position",
-            options=["GKP", "DEF", "MID", "FWD"],
-            default=["GKP", "DEF", "MID", "FWD"],
-            label_visibility="collapsed",
-        )
+        pos_filter = position_checklist("Position", key="pos_filter")
     with bar_c2:
         name_search = st.text_input(
             "Search Player",
@@ -2076,11 +2087,7 @@ with tab_manager:
 
         with m_sub3:
             if not watchlist_df.empty:
-                pos_watch = st.multiselect(
-                    "Filter Watchlist Position",
-                    options=["GKP", "DEF", "MID", "FWD"],
-                    default=["GKP", "DEF", "MID", "FWD"],
-                )
+                pos_watch = position_checklist("Watchlist Position", key="pos_watch")
                 st.dataframe(
                     watchlist_df[watchlist_df["Position"].isin(pos_watch)],
                     width='stretch',
