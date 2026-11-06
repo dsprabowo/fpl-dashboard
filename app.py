@@ -1148,7 +1148,7 @@ with tab_players:
     p_sub1, p_sub2, p_sub3 = st.tabs(
         [
             "🔍 Single-Player Deep Dive & Match Log",
-            "🕸️ Head-to-Head Percentile Radar (2–4 Players)",
+            "🕸️ Head-to-Head Percentile Radar (2 Players)",
             "📈 Custom 2D Metric Scatter Explorer",
         ]
     )
@@ -1245,18 +1245,26 @@ with tab_players:
                     st.info("No upcoming fixtures available.")
 
     with p_sub2:
-        default_radar_labels = list(player_label_map.keys())[:3]
+        radar_labels = list(player_label_map.keys())
+        idx_a, idx_b = 0, 1
         if clicked_player_id and clicked_player_id in id_to_label_map:
-            clicked_lbl = id_to_label_map[clicked_player_id]
-            if clicked_lbl not in default_radar_labels:
-                default_radar_labels = [clicked_lbl] + default_radar_labels[:2]
+            idx_a = radar_labels.index(id_to_label_map[clicked_player_id])
+            idx_b = 0 if idx_a != 0 else 1
 
-        radar_selected_labels = st.multiselect(
-            "Select 2–4 Players to Compare (Percentiles vs. Active Premier League Pool)",
-            options=list(player_label_map.keys()),
-            default=default_radar_labels,
-            max_selections=4,
-        )
+        rad_c1, rad_c2 = st.columns(2)
+        with rad_c1:
+            radar_label_a = st.selectbox(
+                "Player 1 (type to search)", options=radar_labels, index=idx_a, key="radar_player_a"
+            )
+        with rad_c2:
+            radar_label_b = st.selectbox(
+                "Player 2 (type to search)", options=radar_labels, index=idx_b, key="radar_player_b"
+            )
+        if radar_label_a == radar_label_b:
+            st.warning("Choose two different players to compare.")
+            radar_selected_labels = []
+        else:
+            radar_selected_labels = [radar_label_a, radar_label_b]
         if radar_selected_labels:
             radar_pids = [player_label_map[lbl] for lbl in radar_selected_labels]
             radar_df, radar_raw_df = build_player_radar_df(
