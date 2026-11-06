@@ -698,6 +698,43 @@ def render_html_pitch(opt_sq: pd.DataFrame, formation: str, next_gw: int) -> Non
 POSITIONS = ["GKP", "DEF", "MID", "FWD"]
 
 
+def build_radar_figure(radar_df: pd.DataFrame, height: int = 420) -> go.Figure:
+    """Build the percentile radar figure for the players in radar_df."""
+    fig_radar = go.Figure()
+    palette = ["#00ff87", "#04f5ff", "#f59e0b", "#ec4899"]
+    for idx, p_name in enumerate(radar_df["Player"].unique()):
+        sub = radar_df[radar_df["Player"] == p_name]
+        theta = sub["Axis"].tolist()
+        r_vals = sub["Percentile"].tolist()
+        raw_vals = sub["Raw_Value"].tolist()
+        theta.append(theta[0])
+        r_vals.append(r_vals[0])
+        raw_vals.append(raw_vals[0])
+        fig_radar.add_trace(
+            go.Scatterpolar(
+                r=r_vals,
+                theta=theta,
+                fill="toself",
+                name=p_name,
+                line=dict(color=palette[idx % len(palette)], width=2.5),
+                customdata=raw_vals,
+                hovertemplate="<b>%{theta}</b><br>Percentile: %{r:.1f}%<br>Raw Stat: %{customdata:.2f}<extra>%{fullData.name}</extra>",
+            )
+        )
+    fig_radar.update_layout(
+        polar=dict(
+            bgcolor="rgba(11, 15, 25, 0.55)",
+            radialaxis=dict(visible=True, range=[0, 100], ticksuffix="%", gridcolor="rgba(148,163,184,0.18)"),
+            angularaxis=dict(gridcolor="rgba(148,163,184,0.18)"),
+        ),
+        title="6-Axis Percentile Radar (0–100%)",
+        margin=dict(l=45, r=45, t=55, b=35),
+        legend=dict(orientation="h", y=-0.12),
+    )
+    apply_broadcast_plotly_theme(fig_radar, height=height)
+    return fig_radar
+
+
 def position_checklist(label: str, key: str) -> list:
     """Dropdown (popover) with one checkbox per position. Returns the checked positions."""
     selected_now = [p for p in POSITIONS if st.session_state.get(f"{key}_{p}", True)]
@@ -1296,39 +1333,7 @@ with tab_players:
             if not radar_df.empty:
                 r_col1, r_col2 = st.columns([1.15, 1.35])
                 with r_col1:
-                    fig_radar = go.Figure()
-                    palette = ["#00ff87", "#04f5ff", "#f59e0b", "#ec4899"]
-                    for idx, p_name in enumerate(radar_df["Player"].unique()):
-                        sub = radar_df[radar_df["Player"] == p_name]
-                        theta = sub["Axis"].tolist()
-                        r_vals = sub["Percentile"].tolist()
-                        raw_vals = sub["Raw_Value"].tolist()
-                        theta.append(theta[0])
-                        r_vals.append(r_vals[0])
-                        raw_vals.append(raw_vals[0])
-                        fig_radar.add_trace(
-                            go.Scatterpolar(
-                                r=r_vals,
-                                theta=theta,
-                                fill="toself",
-                                name=p_name,
-                                line=dict(color=palette[idx % len(palette)], width=2.5),
-                                customdata=raw_vals,
-                                hovertemplate="<b>%{theta}</b><br>Percentile: %{r:.1f}%<br>Raw Stat: %{customdata:.2f}<extra>%{fullData.name}</extra>",
-                            )
-                        )
-                    fig_radar.update_layout(
-                        polar=dict(
-                            bgcolor="rgba(11, 15, 25, 0.55)",
-                            radialaxis=dict(visible=True, range=[0, 100], ticksuffix="%", gridcolor="rgba(148,163,184,0.18)"),
-                            angularaxis=dict(gridcolor="rgba(148,163,184,0.18)"),
-                        ),
-                        title="6-Axis Percentile Radar (0–100%)",
-                        margin=dict(l=45, r=45, t=55, b=35),
-                        legend=dict(orientation="h", y=-0.12),
-                    )
-                    apply_broadcast_plotly_theme(fig_radar, height=420)
-                    st.plotly_chart(fig_radar, width='stretch')
+                    st.plotly_chart(build_radar_figure(radar_df, height=420), width='stretch')
                 with r_col2:
                     st.markdown("**Side-by-Side Metric & Price Velocity Comparison**")
                     st.dataframe(
@@ -1991,6 +1996,47 @@ with tab_manager:
                         options=list(in_map.keys()),
                         key="sb_custom_in",
                     )
+                    sel_in_id = in_map[sel_in_lbl]
+                    with st.expander("🕸️ Compare Player Out vs Player In", expanded=True):
+                        cmp_ids = [sel_out_id, sel_in_id]
+                        cmp_df, _cmp_raw = build_player_radar_df(
+                            players_df, fixtures, current_gw=int(current_gw), player_ids=cmp_ids
+                        )
+                        pair = all_players_xp[all_players_xp["id"].astype(int).isin(cmp_ids)].set_index(
+                            all_players_xp[all_players_xp["id"].astype(int).isin(cmp_ids)]["id"].astype(int)
+                        )
+                        if not cmp_df.empty and len(pair) == 2:
+                            p_out, p_in = pair.loc[sel_out_id], pair.loc[sel_in_id]
+                            d_h = float(p_in["xP_horizon"]) - float(p_out["xP_horizon"])
+                            d_n = float(p_in["xP_next"]) - float(p_out["xP_next"])
+                            d_pr = float(p_in["price"]) - float(p_out["price"])
+                            st.markdown(
+                                f"**{p_in['web_name']} vs {p_out['web_name']}:** "
+                                f"`{d_h:+.1f} xP` over {plan_horizon} GW, `{d_n:+.1f} xP` next GW, "
+                                f"`{d_pr:+.1f}m` price"
+                            )
+                            st.plotly_chart(build_radar_figure(cmp_df, height=360), width="stretch")
+                            delta_rows = [
+                                ("Price (£m)", "price"),
+                                (f"xP GW{next_gw}", "xP_next"),
+                                (f"xP {plan_horizon}GW", "xP_horizon"),
+                                ("xGI / 90", "xGI_per_90"),
+                                ("Minutes", "minutes"),
+                                ("Owned %", "selected_by_percent"),
+                            ]
+                            delta_tbl = pd.DataFrame(
+                                [
+                                    {
+                                        "Metric": lbl,
+                                        "Out": round(float(p_out[col]), 2),
+                                        "In": round(float(p_in[col]), 2),
+                                        "Δ (In − Out)": round(float(p_in[col]) - float(p_out[col]), 2),
+                                    }
+                                    for lbl, col in delta_rows
+                                    if col in pair.columns
+                                ]
+                            )
+                            st.dataframe(delta_tbl, width="stretch", hide_index=True)
                     if st.button("➕ Apply Custom Transfer", width='stretch'):
                         st.session_state["sandbox_transfers"].append(
                             {"out_id": sel_out_id, "in_id": in_map[sel_in_lbl]}
