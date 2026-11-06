@@ -771,6 +771,14 @@ with st.spinner("Loading FPL Broadcast Studio..."):
         st.error(f"Failed to connect to the official FPL API: {exc}")
         st.stop()
 
+_fpl_shorts = {t.get("short_name") for t in bootstrap.get("teams", [])}
+_missing_elo = sorted(s for s in _fpl_shorts if s and s not in elo_map)
+if _missing_elo:
+    st.warning(
+        "Elo data is missing for: " + ", ".join(_missing_elo)
+        + ". Those clubs use FPL team strength instead. Check `CLUBELO_TO_FPL_SHORT` in `src/api.py`."
+    )
+
 current_gw = get_current_or_last_event(bootstrap)
 next_gw = min(38, current_gw + 1)
 deadline_badge = get_next_deadline_info(bootstrap, next_gw)
@@ -807,7 +815,7 @@ with st.sidebar:
     st.divider()
     st.markdown("### ⚙️ Model Parameters")
     rolling_n = st.slider("Club Rolling Form Window", min_value=3, max_value=10, value=5)
-    if st.button("🔄 Refresh Live API Cache", use_container_width=True):
+    if st.button("🔄 Refresh Live API Cache", width='stretch'):
         st.cache_data.clear()
         st.rerun()
 
@@ -927,7 +935,7 @@ with tab_players:
             label_visibility="collapsed",
         )
     with bar_c3:
-        with st.popover("🎛️ Filters & Columns", use_container_width=True):
+        with st.popover("🎛️ Filters & Columns", width='stretch'):
             club_options = sorted(players_df["team_short"].dropna().unique().tolist())
             club_filter = st.multiselect("Filter by Club", options=club_options, default=[])
             max_price_val = float(players_df["price"].max()) if not players_df.empty else 15.0
@@ -1087,7 +1095,7 @@ with tab_players:
                 "xGI / 90", format="%.2f", min_value=0.0, max_value=1.5
             ),
         },
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         height=400,
         on_select="rerun",
@@ -1162,7 +1170,7 @@ with tab_players:
                         legend=dict(orientation="h", y=1.12),
                     )
                     apply_broadcast_plotly_theme(fig_hist, height=350)
-                    st.plotly_chart(fig_hist, use_container_width=True)
+                    st.plotly_chart(fig_hist, width='stretch')
 
                     hist_cols = [
                         "GW",
@@ -1183,7 +1191,7 @@ with tab_players:
                     ]
                     st.dataframe(
                         hist_df.sort_values("GW", ascending=False)[[c for c in hist_cols if c in hist_df.columns]],
-                        use_container_width=True,
+                        width='stretch',
                         hide_index=True,
                     )
                 else:
@@ -1194,7 +1202,7 @@ with tab_players:
                 if not upc_df.empty:
                     st.dataframe(
                         upc_df[["GW", "Fixture", "FDR", "kickoff_time"]].head(8),
-                        use_container_width=True,
+                        width='stretch',
                         hide_index=True,
                     )
                 else:
@@ -1253,7 +1261,7 @@ with tab_players:
                         legend=dict(orientation="h", y=-0.12),
                     )
                     apply_broadcast_plotly_theme(fig_radar, height=420)
-                    st.plotly_chart(fig_radar, use_container_width=True)
+                    st.plotly_chart(fig_radar, width='stretch')
                 with r_col2:
                     st.markdown("**Side-by-Side Metric & Price Velocity Comparison**")
                     st.dataframe(
@@ -1270,7 +1278,7 @@ with tab_players:
                                 "xGI / 90", format="%.2f", min_value=0.0, max_value=1.5
                             ),
                         },
-                        use_container_width=True,
+                        width='stretch',
                         hide_index=True,
                     )
 
@@ -1314,7 +1322,7 @@ with tab_players:
                 if len(filtered_p) <= 35:
                     fig_scatter.update_traces(textposition="top center")
                 apply_broadcast_plotly_theme(fig_scatter, height=440)
-                st.plotly_chart(fig_scatter, use_container_width=True)
+                st.plotly_chart(fig_scatter, width='stretch')
             else:
                 st.info("No players match the current filter criteria.")
 
@@ -1346,7 +1354,7 @@ with tab_clubs:
             fig_quad.add_hline(y=avg_xgc, line_dash="dash", line_color="#94a3b8", annotation_text="Avg xGC/m")
             fig_quad.update_yaxes(autorange="reversed")
             apply_broadcast_plotly_theme(fig_quad, height=500)
-            st.plotly_chart(fig_quad, use_container_width=True)
+            st.plotly_chart(fig_quad, width='stretch')
 
         with c_col2:
             st.markdown("🎯 **Top 8 Weakest Defenses (Target with Your Attackers)**")
@@ -1379,7 +1387,7 @@ with tab_clubs:
                 column_config={
                     "crest_url": st.column_config.ImageColumn("Club", width="small"),
                 },
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
             )
 
@@ -1413,7 +1421,7 @@ with tab_clubs:
                 column_config={
                     "crest_url": st.column_config.ImageColumn("Club", width="small"),
                 },
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
             )
 
@@ -1454,7 +1462,7 @@ with tab_clubs:
                 "team_name": st.column_config.TextColumn("Club"),
                 "team_short": st.column_config.TextColumn("Short"),
             },
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
             height=450,
         )
@@ -1528,7 +1536,7 @@ with tab_gw:
             margin=dict(l=180, r=20, t=50, b=30),
         )
         apply_broadcast_plotly_theme(fig_fdr, height=580)
-        st.plotly_chart(fig_fdr, use_container_width=True)
+        st.plotly_chart(fig_fdr, width='stretch')
 
     st.divider()
     st.subheader("⚔️ Single-Gameweek Matchup Broadcast Cards & Projections")
@@ -1565,7 +1573,7 @@ with tab_gw:
                         "Away CS %", format="%.1f%%", min_value=0.0, max_value=70.0
                     ),
                 },
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
             )
 
@@ -1621,7 +1629,7 @@ with tab_gw:
                         "gw_bonus",
                     ]
                 ],
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
                 height=380,
             )
@@ -1844,7 +1852,7 @@ with tab_manager:
                     legend=dict(orientation="h", y=1.12),
                 )
                 apply_broadcast_plotly_theme(fig_sq, height=560)
-                st.plotly_chart(fig_sq, use_container_width=True)
+                st.plotly_chart(fig_sq, width='stretch')
 
         with ws_right:
             st.markdown(
@@ -1870,7 +1878,7 @@ with tab_manager:
                         key="sb_rec_select",
                         label_visibility="collapsed",
                     )
-                    if st.button("➕ Apply Recommended Transfer", use_container_width=True, type="primary"):
+                    if st.button("➕ Apply Recommended Transfer", width='stretch', type="primary"):
                         o_id, i_id = rec_options[sel_rec_label]
                         st.session_state["sandbox_transfers"].append({"out_id": o_id, "in_id": i_id})
                         st.rerun()
@@ -1916,7 +1924,7 @@ with tab_manager:
                         options=list(in_map.keys()),
                         key="sb_custom_in",
                     )
-                    if st.button("➕ Apply Custom Transfer", use_container_width=True):
+                    if st.button("➕ Apply Custom Transfer", width='stretch'):
                         st.session_state["sandbox_transfers"].append(
                             {"out_id": sel_out_id, "in_id": in_map[sel_in_lbl]}
                         )
@@ -1935,7 +1943,7 @@ with tab_manager:
                     if st.button(
                         "↩️ Undo Last",
                         disabled=(num_sb_transfers == 0),
-                        use_container_width=True,
+                        width='stretch',
                     ):
                         st.session_state["sandbox_transfers"].pop()
                         st.rerun()
@@ -1943,7 +1951,7 @@ with tab_manager:
                     if st.button(
                         "🔄 Reset Squad",
                         disabled=(num_sb_transfers == 0),
-                        use_container_width=True,
+                        width='stretch',
                     ):
                         st.session_state["sandbox_transfers"] = []
                         st.rerun()
@@ -2018,7 +2026,7 @@ with tab_manager:
                         max_value=float(max(20.0, opt_sq["xP_horizon"].max() * 1.1)),
                     ),
                 },
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
                 height=540,
             )
@@ -2029,7 +2037,7 @@ with tab_manager:
                 visible_single_cols = [c for c in single_moves_df.columns if not c.startswith("_")]
                 st.dataframe(
                     single_moves_df[visible_single_cols],
-                    use_container_width=True,
+                    width='stretch',
                     hide_index=True,
                 )
             else:
@@ -2037,7 +2045,7 @@ with tab_manager:
 
             st.markdown("##### ⚡ Best 2-Player Packages (2 Transfers)")
             if not double_moves_df.empty:
-                st.dataframe(double_moves_df, use_container_width=True, hide_index=True)
+                st.dataframe(double_moves_df, width='stretch', hide_index=True)
             else:
                 st.info("No 2-transfer package exceeds +1.0 Net xP Gain after accounting for transfer cost.")
 
@@ -2050,13 +2058,13 @@ with tab_manager:
                 )
                 st.dataframe(
                     watchlist_df[watchlist_df["Position"].isin(pos_watch)],
-                    use_container_width=True,
+                    width='stretch',
                     hide_index=True,
                 )
 
         with m_sub4:
             chip_df = evaluate_chip_strategy(mgr_hist, lineup_res, next_gw=int(next_gw))
-            st.dataframe(chip_df, use_container_width=True, hide_index=True)
+            st.dataframe(chip_df, width='stretch', hide_index=True)
 
         with m_sub5:
             if league_id_input > 0:
@@ -2068,7 +2076,7 @@ with tab_manager:
                     if not results_df.empty:
                         st.dataframe(
                             results_df[["rank", "entry_name", "player_name", "event_total", "total", "entry"]],
-                            use_container_width=True,
+                            width='stretch',
                             hide_index=True,
                         )
                 except Exception as exc:

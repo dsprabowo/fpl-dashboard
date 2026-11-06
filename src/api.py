@@ -1,11 +1,14 @@
 """FPL Public API client with Streamlit caching."""
 
+import logging
 from datetime import date
 from io import StringIO
 from typing import Any, Dict, List, Optional
 import pandas as pd
 import requests
 import streamlit as st
+
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://fantasy.premierleague.com/api"
 HEADERS = {
@@ -122,24 +125,28 @@ CLUBELO_TO_FPL_SHORT: Dict[str, str] = {
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
+def _fetch_club_elo() -> Dict[str, float]:
+    """Fetch Elo ratings. Raises on failure so Streamlit does not cache an empty result."""
+    today_str = date.today().isoformat()
+    url = f"http://api.clubelo.com/{today_str}"
+    resp = requests.get(url, headers=HEADERS, timeout=8)
+    resp.raise_for_status()
+    elo_df = pd.read_csv(StringIO(resp.text))
+    if "Country" in elo_df.columns:
+        elo_df = elo_df[elo_df["Country"] == "ENG"]
+    elo_map: Dict[str, float] = {}
+    for club_name, elo_val in zip(elo_df["Club"], elo_df["Elo"]):
+        short = CLUBELO_TO_FPL_SHORT.get(str(club_name).strip())
+        if short and float(elo_val) > 0:
+            elo_map[short] = round(float(elo_val), 1)
+    return elo_map
+
+
 def get_club_elo() -> Dict[str, float]:
-    """Fetch live English club Elo ratings from api.clubelo.com, mapped to FPL short_name."""
+    """Return club Elo ratings keyed by FPL short_name, or {} if the fetch fails."""
     try:
-        today_str = date.today().isoformat()
-        url = f"http://api.clubelo.com/{today_str}"
-        resp = requests.get(url, headers=HEADERS, timeout=8)
-        resp.raise_for_status()
-        elo_df = pd.read_csv(StringIO(resp.text))
-        if "Country" in elo_df.columns:
-            elo_df = elo_df[elo_df["Country"] == "ENG"]
-        elo_map: Dict[str, float] = {}
-        for _, row in elo_df.iterrows():
-            club_name = str(row.get("Club", "")).strip()
-            elo_val = float(row.get("Elo", 0.0))
-            short = CLUBELO_TO_FPL_SHORT.get(club_name)
-            if short and elo_val > 0:
-                elo_map[short] = round(elo_val, 1)
-        return elo_map
-    except Exception:
+        return _fetch_club_elo()
+    except Exception as exc:
+        logger.warning("ClubElo fetch failed: %s", exc)
         return {}
 
