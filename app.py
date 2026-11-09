@@ -948,20 +948,24 @@ if not all_players_xp.empty:
         "",
     )
 
+# Rank is null for managers with no scored gameweek yet, so format it safely.
+mgr_rank = mgr_info.get('summary_overall_rank')
+mgr_rank_txt = f"#{int(mgr_rank):,}" if mgr_rank else "N/A"
+
 with st.sidebar:
     if mgr_info:
         st.divider()
         st.markdown(
             f"**👤 {mgr_info.get('name', 'Squad Loaded')}**\n"
             f"- **Manager**: {mgr_info.get('player_first_name', '')} {mgr_info.get('player_last_name', '')}\n"
-            f"- **Overall Rank**: `#{mgr_info.get('summary_overall_rank', 0):,}`\n"
+            f"- **Overall Rank**: `{mgr_rank_txt}`\n"
             f"- **Squad / Bank**: `£{squad_val_m:.1f}m` / `£{bank_m:.1f}m ITB`\n"
             f"- **Sandbox Moves**: `{len(st.session_state.get('sandbox_transfers', []))}` active"
         )
 
 # --- Top Broadcast Hero Header ---
 mgr_badge_html = (
-    f"<span class='fpl-pill'>👤 {html.escape(str(mgr_info.get('name', '')))} • Rank #{mgr_info.get('summary_overall_rank', 0):,}</span>"
+    f"<span class='fpl-pill'>👤 {html.escape(str(mgr_info.get('name', '')))} • Rank {mgr_rank_txt}</span>"
     if mgr_info
     else ""
 )
