@@ -27,6 +27,7 @@ from src.processor import (
     build_gw_live_player_table,
     build_player_radar_df,
     build_players_df,
+    build_initial_squad,
     build_teams_lookup,
     compute_player_xp,
     evaluate_chip_strategy,
@@ -890,6 +891,7 @@ bank_m = 0.0
 squad_val_m = 100.0
 mgr_load_error = None
 mgr_no_history = False
+mgr_draft = False
 
 if manager_id_input > 0:
     try:
@@ -902,8 +904,23 @@ if manager_id_input > 0:
             played_gws = [int(e["event"]) for e in (mgr_hist.get("current", []) or []) if e.get("event")]
             played_gws = [g for g in played_gws if g <= int(current_gw)]
             if not played_gws:
-                picks_data = {}
-                mgr_no_history = True
+                # No history: recommend an editable draft squad for the next gameweek.
+                draft_df = build_initial_squad(all_players_xp) if not all_players_xp.empty else pd.DataFrame()
+                if draft_df.empty:
+                    picks_data = {}
+                    mgr_no_history = True
+                else:
+                    draft_cost = float(
+                        all_players_xp.set_index("id").loc[draft_df["element"], "price"].sum()
+                    )
+                    picks_data = {
+                        "picks": draft_df.to_dict("records"),
+                        "entry_history": {
+                            "bank": round((100.0 - draft_cost) * 10),
+                            "value": round(draft_cost * 10),
+                        },
+                    }
+                    mgr_draft = True
             else:
                 picks_data = get_manager_picks(int(manager_id_input), max(played_gws))
         entry_hist = picks_data.get("entry_history", {}) or {}
@@ -1844,8 +1861,17 @@ with tab_manager:
                 )
 
         num_sb_transfers = len(applied_moves_log)
-        remaining_ft = max(0, int(free_transfers_input) - num_sb_transfers)
-        sb_hit_cost = max(0, num_sb_transfers - int(free_transfers_input)) * 4.0
+        # Draft squads (no history) can be edited freely: every transfer is free.
+        eff_free_transfers = 15 if mgr_draft else int(free_transfers_input)
+        remaining_ft = max(0, eff_free_transfers - num_sb_transfers)
+        sb_hit_cost = max(0, num_sb_transfers - eff_free_transfers) * 4.0
+
+        if mgr_draft:
+            st.info(
+                f"🆕 **Draft squad for GW {next_gw}**: Manager {manager_id_input} has no squad yet, so this is a "
+                f"recommended £100.0m team that maximises the {plan_horizon}-GW horizon xP. "
+                "Edit it with the sandbox on the right. Edits are free of hit cost."
+            )
 
         lineup_res = optimize_starting_xi(working_squad)
         opt_sq = lineup_res.get("squad_table", working_squad)

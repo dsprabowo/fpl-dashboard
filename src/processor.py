@@ -1040,6 +1040,106 @@ def evaluate_chip_strategy(
     return pd.DataFrame(rows)
 
 
+def build_initial_squad(
+    all_players_xp: pd.DataFrame,
+    budget_m: float = 100.0,
+    bench_weight: float = 0.1,
+    min_play_prob: float = 0.75,
+) -> pd.DataFrame:
+    """Recommend a starting 15-man squad that maximises full-horizon xP.
+
+    Solved as a small integer program: 2 GKP / 5 DEF / 5 MID / 3 FWD, max 3 players per
+    club, total price within budget, and a valid starting XI (1 GKP, 3-5 DEF, 2-5 MID,
+    1-3 FWD). Starters count fully and bench players count at ``bench_weight``.
+
+    Returns a picks-style DataFrame (columns: element, position, is_captain,
+    is_vice_captain, multiplier) so it can replace a manager's real picks. Returns an
+    empty DataFrame if no feasible squad exists.
+    """
+    from scipy.optimize import Bounds, LinearConstraint, milp
+
+    pool = all_players_xp[
+        (all_players_xp["play_prob"] >= min_play_prob) & (all_players_xp["price"] > 0)
+    ].copy()
+    # Prune to the strongest candidates per position (by raw xP and by xP per £m) to keep the solve fast.
+    pool["_xp_per_m"] = pool["xP_horizon"].fillna(0.0) / pool["price"]
+    keep_ids = set()
+    for _, grp in pool.groupby("position"):
+        keep_ids |= set(grp.nlargest(25, "xP_horizon")["id"])
+        keep_ids |= set(grp.nlargest(25, "_xp_per_m")["id"])
+        keep_ids |= set(grp.nsmallest(4, "price")["id"])  # cheap fillers keep the budget feasible
+    pool = pool[pool["id"].isin(keep_ids)].reset_index(drop=True)
+    n = len(pool)
+    if n == 0:
+        return pd.DataFrame()
+
+    # Variables: x_i (in squad) for i in [0, n), s_i (in starting XI) for i in [n, 2n).
+    xp = pool["xP_horizon"].fillna(0.0).to_numpy(dtype=float)
+    cost = pool["price"].to_numpy(dtype=float)
+    pos = pool["position"].to_numpy()
+    team = pool["team"].astype(int).to_numpy()
+
+    c = -np.concatenate([bench_weight * xp, (1.0 - bench_weight) * xp])
+    rows, lo, hi = [], [], []
+
+    def add(coefs: np.ndarray, low: float, high: float) -> None:
+        rows.append(coefs)
+        lo.append(low)
+        hi.append(high)
+
+    zeros, eye = np.zeros(n), np.eye(n)
+    add(np.concatenate([cost, zeros]), 0, budget_m)
+    add(np.concatenate([np.ones(n), zeros]), 15, 15)
+    add(np.concatenate([zeros, np.ones(n)]), 11, 11)
+    for p, (squad_n, (xi_lo, xi_hi)) in {
+        "GKP": (2, (1, 1)),
+        "DEF": (5, (3, 5)),
+        "MID": (5, (2, 5)),
+        "FWD": (3, (1, 3)),
+    }.items():
+        mask = (pos == p).astype(float)
+        add(np.concatenate([mask, zeros]), squad_n, squad_n)
+        add(np.concatenate([zeros, mask]), xi_lo, xi_hi)
+    for t in np.unique(team):
+        add(np.concatenate([(team == t).astype(float), zeros]), 0, 3)
+    for i in range(n):  # starter must be in squad
+        add(np.concatenate([-eye[i], eye[i]]), -np.inf, 0)
+
+    res = milp(
+        c,
+        constraints=LinearConstraint(np.vstack(rows), lo, hi),
+        integrality=np.ones(2 * n),
+        bounds=Bounds(0, 1),
+        options={"time_limit": 20},
+    )
+    if res.x is None:  # a time-limited solve may still return a good feasible solution
+        return pd.DataFrame()
+
+    in_squad = res.x[:n] > 0.5
+    starting = res.x[n:] > 0.5
+    chosen = pool.loc[in_squad].copy()
+    chosen["is_starter"] = starting[in_squad]
+
+    # Slots 1-11 = starters (best xP_next first), 12-15 = bench ordered by xP_next.
+    chosen = chosen.sort_values(
+        ["is_starter", "xP_next"], ascending=[False, False]
+    ).reset_index(drop=True)
+    chosen["slot"] = np.arange(1, len(chosen) + 1)
+    starters = chosen[chosen["is_starter"]]
+    cap_id = int(starters.iloc[0]["id"])
+    vc_id = int(starters.iloc[1]["id"]) if len(starters) > 1 else cap_id
+
+    return pd.DataFrame(
+        {
+            "element": chosen["id"].astype(int),
+            "position": chosen["slot"].astype(int),
+            "is_captain": chosen["id"].astype(int) == cap_id,
+            "is_vice_captain": chosen["id"].astype(int) == vc_id,
+            "multiplier": np.where(chosen["id"].astype(int) == cap_id, 2, np.where(chosen["is_starter"], 1, 0)),
+        }
+    )
+
+
 def recommend_transfers(
     squad_df: pd.DataFrame,
     all_players_xp: pd.DataFrame,
