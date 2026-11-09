@@ -889,15 +889,33 @@ owned_player_ids = set()
 bank_m = 0.0
 squad_val_m = 100.0
 mgr_load_error = None
+mgr_no_history = False
 
 if manager_id_input > 0:
     try:
         mgr_info = get_manager_info(int(manager_id_input))
         mgr_hist = get_manager_history(int(manager_id_input))
-        picks_data = get_manager_picks(int(manager_id_input), int(current_gw))
-        entry_hist = picks_data.get("entry_history", {})
-        bank_m = round(float(entry_hist.get("bank", mgr_info.get("last_deadline_bank", 0))) / 10.0, 1)
-        squad_val_m = round(float(entry_hist.get("value", mgr_info.get("last_deadline_value", 1000))) / 10.0, 1)
+        try:
+            picks_data = get_manager_picks(int(manager_id_input), int(current_gw))
+        except Exception:
+            # 404: manager has no picks for this GW (e.g. joined late). Use their latest played GW.
+            played_gws = [int(e["event"]) for e in (mgr_hist.get("current", []) or []) if e.get("event")]
+            played_gws = [g for g in played_gws if g <= int(current_gw)]
+            if not played_gws:
+                picks_data = {}
+                mgr_no_history = True
+            else:
+                picks_data = get_manager_picks(int(manager_id_input), max(played_gws))
+        entry_hist = picks_data.get("entry_history", {}) or {}
+        # API fields can be null for new managers, so fall back to defaults (tenths of £m).
+        bank_raw = entry_hist.get("bank")
+        if bank_raw is None:
+            bank_raw = mgr_info.get("last_deadline_bank")
+        val_raw = entry_hist.get("value")
+        if val_raw is None:
+            val_raw = mgr_info.get("last_deadline_value")
+        bank_m = round(float(bank_raw or 0) / 10.0, 1)
+        squad_val_m = round(float(val_raw or 1000) / 10.0, 1)
         picks_list = pd.DataFrame(picks_data.get("picks", []))
         if not picks_list.empty:
             owned_player_ids = set(picks_list["element"].astype(int).tolist())
@@ -1720,6 +1738,11 @@ with tab_gw:
 with tab_manager:
     if mgr_load_error:
         st.error(f"Could not load manager data for ID {manager_id_input}: {mgr_load_error}")
+    elif mgr_no_history:
+        st.info(
+            f"Manager {manager_id_input} has no squad picks yet (no gameweek played). "
+            "Squad view will appear after their first gameweek."
+        )
     elif squad_df_raw.empty or all_players_xp.empty:
         st.markdown(
             """
