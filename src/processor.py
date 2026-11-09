@@ -1140,6 +1140,31 @@ def build_initial_squad(
     )
 
 
+def estimate_free_transfers(history: Dict[str, Any], max_ft: int = 5) -> int:
+    """Estimate the free transfers a manager has for the next gameweek.
+
+    The FPL API exposes no free-transfer count, so it is replayed from history:
+    GW1 transfers are unlimited, then each GW uses its transfers from the bank
+    and adds 1 (capped at ``max_ft``). A Wildcard resets the next GW to 1 free
+    transfer. A Free Hit uses none and keeps the bank. Estimate only: transfers
+    already made for the upcoming GW are not yet in history.
+    """
+    chips = {int(c["event"]): c.get("name") for c in (history.get("chips", []) or []) if c.get("event")}
+    ft = 1
+    for row in sorted(history.get("current", []) or [], key=lambda r: int(r["event"])):
+        gw = int(row["event"])
+        if gw == 1:
+            continue
+        chip = chips.get(gw)
+        if chip == "wildcard":
+            ft = 1
+        elif chip == "freehit":
+            ft = min(ft + 1, max_ft)
+        else:
+            ft = min(max(ft - int(row.get("event_transfers") or 0), 0) + 1, max_ft)
+    return max(1, ft)
+
+
 def recommend_transfers(
     squad_df: pd.DataFrame,
     all_players_xp: pd.DataFrame,

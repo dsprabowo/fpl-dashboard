@@ -27,6 +27,7 @@ from src.processor import (
     build_gw_live_player_table,
     build_player_radar_df,
     build_players_df,
+    estimate_free_transfers,
     build_initial_squad,
     build_teams_lookup,
     compute_player_xp,
@@ -853,7 +854,21 @@ with st.sidebar:
         st.warning("Manager ID must contain digits only.")
     sb_col1, sb_col2 = st.columns(2)
     with sb_col1:
-        free_transfers_input = st.selectbox("Free Transfers", options=[1, 2, 3, 4, 5], index=0)
+        # The API has no free-transfer field, so estimate it from the manager's history.
+        ft_default, ft_note = 1, "Set manually."
+        if manager_id_input > 0:
+            try:
+                ft_default = min(5, estimate_free_transfers(get_manager_history(int(manager_id_input))))
+                ft_note = "Auto-estimated from transfer history (the FPL API has no FT field). Adjust if wrong."
+            except Exception:
+                pass
+        free_transfers_input = st.selectbox(
+            "Free Transfers",
+            options=[1, 2, 3, 4, 5],
+            index=ft_default - 1,
+            key=f"ft_select_{manager_id_input}",
+            help=ft_note,
+        )
     with sb_col2:
         plan_horizon = st.selectbox("Horizon (GWs)", options=[3, 4, 5, 6], index=0)
     league_slot = st.container()  # Filled after the manager's leagues are loaded.
